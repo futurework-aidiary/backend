@@ -184,7 +184,7 @@ def conversation_start(userId):
 
     try:
 
-        new_conv = t_conversations(
+        new_conv = Conversations(
 
             user_id=user.user_id,
             start_time=datetime.now(),  # 현재 시간 대입
@@ -263,7 +263,7 @@ def add_message():
             raise Exception("Failed to get response from AI")
 
         # 3. t_conversations 릴레이션의 context 필드 업데이트
-        conversation = t_conversations.query.filter_by(conversation_id=message.conversation_id).first()
+        conversation = Conversations.query.filter_by(conversation_id=message.conversation_id).first()
 
         if conversation:
             conversation.context = aimsg.context

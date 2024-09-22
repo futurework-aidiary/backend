@@ -1,15 +1,15 @@
 from typing import List, Optional
 
-from sqlalchemy import Column, Date, DateTime, ForeignKeyConstraint, Index, Integer, String, Table, text
+from sqlalchemy import Column, Date, DateTime, ForeignKeyConstraint, Index, Integer, String, Table, text, nulls_last
 from sqlalchemy.dialects.mysql import TINYINT
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
-import datetime
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, MappedClassProtocol
+from datetime import datetime
 
-class Base(DeclarativeBase):
-    pass
+from . import db
 
 
-class User(Base):
+
+class User(db.Model):
     __tablename__ = 'User'
     __table_args__ = (
         Index('User_pk', 'username', unique=True),
@@ -28,7 +28,7 @@ class User(Base):
     messages: Mapped[List['Messages']] = relationship('Messages', back_populates='user')
 
 
-class Abusing(Base):
+class Abusing(db.Model):
     __tablename__ = 'abusing'
     __table_args__ = {}
 
@@ -38,28 +38,28 @@ class Abusing(Base):
     condition: Mapped[List['Condition']] = relationship('Condition', back_populates='abusing')
 
 
-class Background(Base):
+class Background(db.Model):
     __tablename__ = 'background'
     __table_args__ = {}
 
     backstyle: Mapped[str] = mapped_column(String(10), primary_key=True)
 
 
-class Bubble(Base):
+class Bubble(db.Model):
     __tablename__ = 'bubble'
     __table_args__ = {}
 
     bubstyle: Mapped[str] = mapped_column(String(10), primary_key=True)
 
 
-class Character(Base):
+class Character(db.Model):
     __tablename__ = 'character'
     __table_args__ = {}
 
     charstyle: Mapped[str] = mapped_column(String(10), primary_key=True)
 
 
-class Emo(Base):
+class Emo(db.Model):
     __tablename__ = 'emo'
     __table_args__ = {}
 
@@ -68,7 +68,7 @@ class Emo(Base):
     diary: Mapped[List['Diary']] = relationship('Diary', back_populates='emo_')
 
 
-class Restaurant(Base):
+class Restaurant(db.Model):
     __tablename__ = 'restaurant'
     __table_args__ = {}
 
@@ -78,7 +78,7 @@ class Restaurant(Base):
     rst_call: Mapped[int] = mapped_column(Integer)
 
 
-class Survey(Base):
+class Survey(db.Model):
     __tablename__ = 'survey'
     __table_args__ = {}
 
@@ -87,7 +87,7 @@ class Survey(Base):
     survey_question: Mapped[List['SurveyQuestion']] = relationship('SurveyQuestion', back_populates='survey')
 
 
-class Weather(Base):
+class Weather(db.Model):
     __tablename__ = 'weather'
     __table_args__ = {}
 
@@ -96,7 +96,7 @@ class Weather(Base):
     diary: Mapped[List['Diary']] = relationship('Diary', back_populates='weather_')
 
 
-class Condition(Base):
+class Condition(db.Model):
     __tablename__ = 'condition'
     __table_args__ = (
         ForeignKeyConstraint(['abused'], ['abusing.abuse_id'], name='condition_abusing_abuse_id_fk'),
@@ -116,37 +116,45 @@ class Condition(Base):
     user: Mapped['User'] = relationship('User', back_populates='condition')
 
 
-t_conversations = Table(
-    'conversations', Base.metadata,
-    Column('conversation_id', Integer, nullable=False),
-    Column('user_id', Integer, nullable=False),
-    Column('start_time', DateTime, nullable=False, server_default=text('CURRENT_TIMESTAMP')),
-    Column('end_time', DateTime),
-    Column('context', String(100)),
-    ForeignKeyConstraint(['user_id'], ['User.user_id'], name='conversations_User_user_id_fk'),
-    Index('conversations_User_user_id_fk', 'user_id'),
-    Index('conversations_id', 'conversation_id', unique=True),
-)
+class Conversations(db.Model):
+    __tablename__ = 'conversations'
+    __table_args__ = (
+        ForeignKeyConstraint(['user_id'], ['User.user_id'], name='conversations_User_user_id_fk'),
+        Index('conversations_User_user_id_fk', 'user_id'),
+        Index('conversations_id', 'conversation_id', unique=True)
+    )
+    weather: Mapped[str] = mapped_column(String(10), primary_key=True)
+
+    conversation_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    start_time: Mapped[Date] = mapped_column(DateTime, nullable=False, server_default=text('CURRENT_TIMESTAMP'))  # 수정된 부분
+    end_time: Mapped[datetime] = mapped_column(DateTime)
+    context: Mapped[str] = mapped_column(String(100))
 
 
-t_custom = Table(
-    'custom', Base.metadata,
-    Column('user_id', Integer, nullable=False),
-    Column('backstyle', String(10), nullable=False),
-    Column('charstyle', String(10), nullable=False),
-    Column('bubstyle', String(10), nullable=False),
-    ForeignKeyConstraint(['backstyle'], ['background.backstyle'], name='custom_background_backstyle_fk'),
-    ForeignKeyConstraint(['bubstyle'], ['bubble.bubstyle'], name='custom_bubble_bubstyle_fk'),
-    ForeignKeyConstraint(['charstyle'], ['character.charstyle'], name='custom_character_charstyle_fk'),
-    ForeignKeyConstraint(['user_id'], ['User.user_id'], name='custom_User_user_id_fk'),
-    Index('custom_User_user_id_fk', 'user_id'),
-    Index('custom_background_backstyle_fk', 'backstyle'),
-    Index('custom_bubble_bubstyle_fk', 'bubstyle'),
-    Index('custom_character_charstyle_fk', 'charstyle'),
-)
+class Custom(db.Model):
+    __tablename__ = 'custom'
+    __table_args__ = (
+        ForeignKeyConstraint(['backstyle'], ['background.backstyle'], name='custom_background_backstyle_fk'),
+        ForeignKeyConstraint(['bubstyle'], ['bubble.bubstyle'], name='custom_bubble_bubstyle_fk'),
+        ForeignKeyConstraint(['charstyle'], ['character.charstyle'], name='custom_character_charstyle_fk'),
+        ForeignKeyConstraint(['user_id'], ['User.user_id'], name='custom_User_user_id_fk'),
+        Index('custom_User_user_id_fk', 'user_id'),
+        Index('custom_background_backstyle_fk', 'backstyle'),
+        Index('custom_bubble_bubstyle_fk', 'bubstyle'),
+        Index('custom_character_charstyle_fk', 'charstyle')
+    )
+
+    conversation_id: Mapped[int] = mapped_column(Integer, nullable=False, primary_key=True) # 추가: Integer 타입으로 정의
+    user_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    backstyle: Mapped[str] = mapped_column(String(10), nullable=False)  # 수정: backstyle로 변경
+    charstyle: Mapped[str] = mapped_column(String(10), nullable=False)
+    bubstyle: Mapped[str] = mapped_column(String(10), nullable=False)
 
 
-class Diary(Base):
+
+
+class Diary(db.Model):
     __tablename__ = 'diary'
     __table_args__ = (
         ForeignKeyConstraint(['emo'], ['emo.emo'], name='diary_emo_emo_fk'),
@@ -171,7 +179,7 @@ class Diary(Base):
     weather_: Mapped['Weather'] = relationship('Weather', back_populates='diary')
 
 
-class SurveyQuestion(Base):
+class SurveyQuestion(db.Model):
     __tablename__ = 'survey_question'
     __table_args__ = (
         ForeignKeyConstraint(['survey_name'], ['survey.survey_name'], name='survey_question_survey_survey_name_fk'),
@@ -185,7 +193,7 @@ class SurveyQuestion(Base):
     survey: Mapped['Survey'] = relationship('Survey', back_populates='survey_question')
 
 
-class Messages(Base):
+class Messages(db.Model):
     __tablename__ = 'messages'
     __table_args__ = (
         ForeignKeyConstraint(['conversation_id'], ['conversations.conversation_id'], name='messages_conversations_conversation_id_fk'),
@@ -195,7 +203,7 @@ class Messages(Base):
     )
 
     message_id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    timelog: Mapped[datetime.datetime] = mapped_column(DateTime)
+    timelog: Mapped[datetime] = mapped_column(DateTime)
     conversation_id: Mapped[Optional[int]] = mapped_column(Integer)
     user_id: Mapped[Optional[int]] = mapped_column(Integer)
     text_: Mapped[Optional[str]] = mapped_column('text', String(100))
@@ -205,13 +213,18 @@ class Messages(Base):
     user: Mapped['User'] = relationship('User', back_populates='messages')
 
 
-t_response = Table(
-    'response', Base.metadata,
-    Column('question_num', Integer, nullable=False),
-    Column('survey_name', String(10), nullable=False),
-    Column('response', Integer, nullable=False),
-    ForeignKeyConstraint(['question_num'], ['survey_question.question_num'], name='response_survey_question_question_num_fk'),
-    ForeignKeyConstraint(['survey_name'], ['survey_question.survey_name'], name='response_survey_question_survey_name_fk'),
-    Index('response_survey_question_question_num_fk', 'question_num'),
-    Index('response_survey_question_survey_name_fk', 'survey_name'),
-)
+class Response(db.Model):
+    __tablename__ = 'response'
+    __table_args__ = (
+        ForeignKeyConstraint(['question_num'], ['survey_question.question_num'],
+                             name='response_survey_question_question_num_fk'),
+        ForeignKeyConstraint(['survey_name'], ['survey_question.survey_name'],
+                             name='response_survey_question_survey_name_fk'),
+        Index('response_survey_question_question_num_fk', 'question_num'),
+        Index('response_survey_question_survey_name_fk', 'survey_name')
+    )
+
+    question_num: Mapped[int] = mapped_column(Integer, nullable=False)  # question_num 추가
+    survey_name: Mapped[str] = mapped_column(String(10), nullable=False, primary_key=True)
+    response: Mapped[int] = mapped_column(Integer, nullable=False)
+

@@ -13,13 +13,13 @@ from flask import Blueprint
 main_routes = Blueprint('main', __name__)
 
 # 외부 AI 모델 API URL
-AI_API_URL = "http://ai-model-instance/api/process"
+AI_API_URL = "http://localhost:5000"
 
 def get_message(conversation_id, message_id):
     try:
 
         # 데이터베이스에서 user_id로 메시지 데이터를 가져옴
-        conv = t_conversations.query.filter_by(conversation_id=conversation_id).first()
+        conv = Conversations.query.filter_by(conversation_id=conversation_id).first()
 
         msg = Messages.query.filter_by(message_id=message_id).first()
 
@@ -48,7 +48,7 @@ def get_message(conversation_id, message_id):
 def get_diary(conversation_id):
     try:
         # 데이터베이스에서 대화 데이터를 가져옴
-        conv = t_conversations.query.filter_by(conversation_id=conversation_id).first()
+        conv = Conversations.query.filter_by(conversation_id=conversation_id).first()
 
         if not conv:
             return None, "Conversation not found"
