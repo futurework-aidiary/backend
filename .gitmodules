@@ -1,0 +1,3 @@
+[submodule "flaskProject1/chatbot"]
+	path = flaskProject1/chatbot
+	url = https://github.com/futurework-aidiary/chatbot.git
