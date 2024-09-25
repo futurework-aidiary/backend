@@ -3,14 +3,15 @@ import requests
 from .models import *
 
 # 외부 AI 모델 API URL
-AI_API_URL = "http://localhost:5001/futurework/aidiary"
+AI_API_URL = "http://localhost:5001/ai"
 
 def get_message(text):
     try:
         # AI 모델 인스턴스에 메시지를 전송
         payload = {"context": '', "text": text}
 
-        ai_response = requests.post(AI_API_URL, json=payload)
+        msg_url = AI_API_URL + "/message"
+        ai_response = requests.post(msg_url, json=payload)
 
         return ai_response.json()
         # 외부 API에서 응답 받음
