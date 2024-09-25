@@ -3,3 +3,4 @@ PyMySQL
 SQLAlchemy
 waitress
 python-dotenv
+requests

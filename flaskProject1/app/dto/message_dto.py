@@ -29,58 +29,47 @@ class MessageResponseDTO:
         }
 
 class ConversationRequestDTO:
-    def __init__(self, user_id):
+    def __init__(self, user_id, emo, weather):
         self.user_id = user_id
+        self.emo = emo
+        self.weather = weather
+
     def to_dict(self):
         return {
-            "userId": self.user_id
+            "userId": self.user_id,
+            "emo": self.emo,
+            "weather": self.weather
         }
 
 class ConversationResponseDTO:
-    def __init__(self, conversation_id, user_id, start_time, emotions, weather_options):
+    def __init__(self, conversation_id, start_time):
         self.conversation_id = conversation_id
-        self.user_id = user_id
         self.start_time = start_time
-        self.emotions = emotions  # list of emotions
-        self.weather_options = weather_options  # list of weather options
 
     def to_dict(self):
         return {
-            "conversation": {
-                "conversationId": self.conversation_id,
-                "userId": self.user_id,
-                "startTime": self.start_time
-            },
-            "emotions": [{"emo": emo} for emo in self.emotions],
-            "weather": [{"weather": weather} for weather in self.weather_options]
+            "conversationId": self.conversation_id,
+            "startTime": self.start_time
         }
 
 class ConversationEndRequest:
-    def __init__(self, conversation_id, end_time, weather, emo):
+    def __init__(self, conversation_id, end_time):
         self.conversation_id = conversation_id
         self.end_time = end_time
-        self.weather = weather
-        self.emo = emo
 
     def to_dict(self):
         return {
-            "conversation": {
-                "conversationId": self.conversation_id,
-                "endTime": self.end_time,
-            },
-            "diary": {
-                "weather": self.weather,
-                "emo": self.emo
-            }
-
+            "conversationId": self.conversation_id,
+            "endTime": self.end_time
         }
 
 class ConversationEndResponse:
-    def __init__(self):
-        pass
+    def __init__(self, diary):
+        self.diary = diary
 
-    def to_dict(msg : str):
+    def to_dict(self):
         return {
-            "msg": msg}
+            "diary": self.diary
+        }
 
 

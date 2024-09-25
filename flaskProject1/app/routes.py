@@ -1,6 +1,6 @@
-from flask import Flask, jsonify, request
+from flask import jsonify, request
 
-from app.routesAI import get_message, make_diary
+from app.routesAI import get_message
 from .dto import *
 from .models import *
 from app import db
@@ -13,6 +13,7 @@ from flask import Blueprint
 from .models import Messages  # SQLAlchemy 모델
 
 import logging
+
 # 로깅 설정
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s - %(levelname)s - %(message)s')
@@ -178,57 +179,55 @@ def delete_user(userId):
     return jsonify(DeleteUserResponseDTO.to_dict("User deleted successfully")), 200
 
 #대화세션 생성
-@main_routes.route('/conversation/<int:userId>', methods=['GET'])
-def conversation_start(userId):
+@main_routes.route('/conversations', methods=['POST'])
+def conversation_start():
+    data = request.get_json()
 
     try:
-        get_user = ConversationRequestDTO(
-            user_id=userId
+        get_con = ConversationRequestDTO(
+            user_id=data.user_id,
+            emo=data.emo,
+            weather=data.weather
         )
 
     except KeyError as e:
         return jsonify({"error": f"Missing field: {str(e)}"}), 400
 
-    user = User.query.filter_by(user_id=get_user.user_id).first()
+    user = User.query.filter_by(user_id=get_con.user_id).first()
 
     if not user:
         return jsonify({"error": "User not found"}), 404
 
+
+
     try:
 
         new_conv = Conversations(
-
             user_id=user.user_id,
             start_time=datetime.now(),  # 현재 시간 대입
             end_time=None,
             context=""
         )
-
         # 4. 데이터베이스에 저장
         db.session.add(new_conv)
         db.session.commit()
 
-
-    except Exception as e:
-
-        return jsonify({"error": str(e)}), 500
-
-    try:
-        # Fetch all possible emotion options
-        emotions = Emo.query.all()
-        emotion_list = [emotion.emo for emotion in emotions]
-
-        # Fetch all possible weather options
-        weather_options = Weather.query.all()
-        weather_list = [weather.weather for weather in weather_options]
+        new_diary = Diary(
+            date = datetime.today(),
+            weather = get_con.weather,
+            emo = get_con.emo,
+            bookmark = None,
+            user_id = get_con.user_id,
+            context = "",
+            conversation_id = new_conv.conversation_id
+        )
+        db.session.add(new_diary)
+        db.session.commit()
 
         # Create the response DTO
         convResponse = ConversationResponseDTO(
             conversation_id=new_conv.conversation_id,
-            user_id=new_conv.user_id,
-            start_time=new_conv.start_time,
-            emotions=emotion_list,
-            weather_options=weather_list
+            start_time=new_conv.start_time
         )
 
         return jsonify(convResponse.to_dict()), 200
@@ -265,39 +264,61 @@ def add_message():
         db.session.commit()
 
         # AI 모듈에 요청
-        aimsg = get_message(message.conversation_id, message.message_id)
+        botresponse = get_message(message.text)
 
-        if not aimsg:
+        if not botresponse:
             logging.error("Failed to get response from AI")
             raise Exception("Failed to get response from AI")
 
-
-        # t_conversations 릴레이션 업데이트
-        conversation = Conversations.query.filter_by(conversation_id=message.conversation_id).first()
-        if not conversation:
-            raise Exception(f"Conversation with ID {message.conversation_id} not found")
-
-        if aimsg['context'] is None:
-            raise Exception(f"AI response context is None for conversation ID {message.conversation_id}")
-
-        conversation.context = aimsg['context']
-        message.botresponse = aimsg['botresponse']
+        #메시지 db에 업데이트
+        message.botresponse = botresponse['botresponse']
         db.session.commit()
 
         # 응답 반환
         response = MessageResponseDTO(
             user_id=message.user_id,
             timelog=datetime.now().strftime('%Y-%m-%d'),
-            botresponse=aimsg['botresponse']
+            botresponse=botresponse['botresponse']
         )
         return jsonify(response.to_dict()), 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+#프론트서 종료 요청 시, exit문자 ai에 전달하고, 응답(일기)를 diary에 마저 저장
 
-# 로깅 설정
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+@main_routes.route('/conversations/end', methods=['POST'])
+def end_conversation():
+    try:
+        data = request.get_json()
+        get_end = ConversationEndRequest(
+            conversation_id=data['conversationId'],
+            end_time=data['endTime']
+        )
+
+        conv = Conversations.query.filter_by(conversation_id=get_end.conversation_id)
+        conv.end_time = get_end
+        db.session.commit()
+
+        # AI 모듈에 요청
+        endtext = "exit"
+        diarytext= get_message(endtext)
+
+        #db에 일기내용 추가
+
+        writtendiary = Diary.query.filter_by(conversation_id=get_end.conversation_id).first()
+
+        writtendiary.context = diarytext
+
+        endresponse = ConversationEndResponse(
+            diary = diarytext
+        )
+
+        return jsonify(endresponse.to_dict()), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 
 # 생성된 일기 조회
@@ -312,26 +333,16 @@ def get_diary():
 
         diary_request = GetDiaryRequestDTO(
             user_id=data['userId'],
-            conversation_id=data['conversationId'],
-            emo=data['emo'],
-            weather=data['weather']
+            conversation_id=data['conversationId']
         )
         logging.debug(f"Diary 요청 DTO: {diary_request}")
-
-        # 대화세션 조회
-        conv = Conversations.query.filter_by(conversation_id=diary_request.conversation_id).first()
-        if not conv:
-            logging.warning(f"Conversation not found: conversation_id={diary_request.conversation_id}")
-            return jsonify({"error": "Conversation not found"}), 404
-
-        logging.debug(f"Conversation 찾음: {conv}")
 
         writtendiary = Diary.query.filter_by(conversation_id=diary_request.conversation_id).first()
         logging.debug(f"기존 일기 조회 결과: {writtendiary}")
 
-        # 적힌 일기가 이미 있다면, 이를 반환.
+        # 적힌 일기를 찾았다면, 이를 반환.
         if writtendiary:
-            logging.info("기존 일기가 있음, 이를 반환")
+            logging.info("일기 반환")
             diary_response = GetDiaryResponseDTO(
                 user_id=writtendiary.user_id,
                 diary_id=writtendiary.diary_id,
@@ -340,49 +351,11 @@ def get_diary():
                 date=writtendiary.date,
                 context=writtendiary.context
             )
-        # 없다면, 새 일기 작성 요청 후, 이를 반환
-        else:
-            logging.info("기존 일기가 없으므로 새 일기를 작성합니다.")
-            newdiary = Diary(
-                date=datetime.today(),
-                weather=diary_request.weather,
-                emo=diary_request.emo,
-                user_id=diary_request.user_id,
-                conversation_id=conv.conversation_id,
-                context=""
-            )
 
-            logging.debug(f"새 Diary 객체 생성: {newdiary}")
-
-            # AI 모듈에서 새 일기 작성 요청
-            aidiary = make_diary(conv, newdiary.diary_id)  # diaryId, context 반환
-            logging.debug(f"AI 모듈로부터 반환된 데이터: {aidiary}")
-            
-            newdiary.context = aidiary['context']
-
-            db.session.add(newdiary)
-            db.session.commit()
-            logging.info(f"새 일기 저장 완료: {newdiary.diary_id}")
-
-            # 응답 DTO를 생성
-            diary_response = GetDiaryResponseDTO(
-                user_id=newdiary.user_id,
-                diary_id=newdiary.diary_id,
-                emo=newdiary.emo,
-                weather=newdiary.weather,
-                date=newdiary.date,
-                context=newdiary.context
-            )
-        return jsonify(diary_response.to_dict()), 200
+        return jsonify(writtendiary.to_dict()), 200
 
     except KeyError as e:
-        logging.error(f"필수 필드가 누락되었습니다: {str(e)}")
-        return jsonify({"error": f"Missing field: {str(e)}"}), 400
-
-    except Exception as e:
-        logging.error(f"알 수 없는 오류 발생: {str(e)}", exc_info=True)
-        return jsonify({"error": "An error occurred: " + str(e)}), 500
-
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == '__main__':
