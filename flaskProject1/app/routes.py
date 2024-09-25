@@ -373,7 +373,6 @@ def get_diary():
                 date=newdiary.date,
                 context=newdiary.context
             )
-
         return jsonify(diary_response.to_dict()), 200
 
     except KeyError as e:

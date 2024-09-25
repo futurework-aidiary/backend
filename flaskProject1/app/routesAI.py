@@ -3,7 +3,7 @@ from flask import request
 from .models import *
 
 # 외부 AI 모델 API URL
-AI_API_URL = "http://localhost:5000"
+AI_API_URL = "http://localhost:5001"
 
 def get_message(conversation_id, message_id):
     try:
