@@ -1,20 +1,32 @@
 from flask import Flask, jsonify, request
 
-from app.routesAI import get_message
+from app.routesAI import get_message, make_diary
 from .dto import *
 from .models import *
-from app import db, app
+from app import db
 from werkzeug.security import generate_password_hash
 from werkzeug.security import check_password_hash
 from datetime import datetime
 
 from flask import Blueprint
+# 메시지 생성
+from .models import Messages  # SQLAlchemy 모델
+
+import logging
+# 로깅 설정
+logging.basicConfig(level=logging.DEBUG,
+                    format='%(asctime)s - %(levelname)s - %(message)s')
 
 # 블루프린트 정의
 main_routes = Blueprint('main', __name__)
 
+
+@main_routes.route('/')
+def hellor():
+    return "Hello, routes!"
+
 # 회원가입
-@app.route('/user/add', methods=['POST'])
+@main_routes.route('/user/add', methods=['POST'])
 def add_user():
     # 1. JSON 데이터 가져오기
     data = request.get_json()
@@ -56,7 +68,7 @@ def add_user():
     return jsonify(AddUserResponseDTO.to_dict("User added successfully")), 201
 
 # 로그인
-@app.route('/login', methods=['POST'])
+@main_routes.route('/login', methods=['POST'])
 def login():
     data = request.get_json()
 
@@ -83,7 +95,7 @@ def login():
 
 
 # 선택 유저 조회
-@app.route('/user/<int:userId>/get', methods=['GET'])
+@main_routes.route('/user/<int:userId>/get', methods=['GET'])
 
 def get_user(userId):
 
@@ -114,7 +126,7 @@ def get_user(userId):
 
 
 # 유저 정보 수정
-@app.route('/user/<int:userId>/update', methods=['PUT'])
+@main_routes.route('/user/<int:userId>/update', methods=['PUT'])
 def update_user(userId):
 
     data = request.get_json()
@@ -151,7 +163,7 @@ def update_user(userId):
     return jsonify(UpdateUserResponseDTO.to_dict("User updated successfully")), 204
 
 # 유저 정보 삭제
-@app.route('/user/<int:userId>/delete', methods=['DELETE'])
+@main_routes.route('/user/<int:userId>/delete', methods=['DELETE'])
 def delete_user(userId):
 
     user = User.query.get(userId)
@@ -166,7 +178,7 @@ def delete_user(userId):
     return jsonify(DeleteUserResponseDTO.to_dict("User deleted successfully")), 200
 
 #대화세션 생성
-@app.route('/conversation/<int:userId>', methods=['GET'])
+@main_routes.route('/conversation/<int:userId>', methods=['GET'])
 def conversation_start(userId):
 
     try:
@@ -189,7 +201,7 @@ def conversation_start(userId):
             user_id=user.user_id,
             start_time=datetime.now(),  # 현재 시간 대입
             end_time=None,
-            context= None
+            context=""
         )
 
         # 4. 데이터베이스에 저장
@@ -204,11 +216,11 @@ def conversation_start(userId):
     try:
         # Fetch all possible emotion options
         emotions = Emo.query.all()
-        emotion_list = [emotion.to_dict() for emotion in emotions]
+        emotion_list = [emotion.emo for emotion in emotions]
 
         # Fetch all possible weather options
         weather_options = Weather.query.all()
-        weather_list = [weather.to_dict() for weather in weather_options]
+        weather_list = [weather.weather for weather in weather_options]
 
         # Create the response DTO
         convResponse = ConversationResponseDTO(
@@ -227,11 +239,7 @@ def conversation_start(userId):
 
 
 
-# 메시지 생성
-from .models import Messages  # SQLAlchemy 모델
-
-
-@app.route('/message/<int:userId>', methods=['POST'])
+@main_routes.route('/message', methods=['POST'])
 def add_message():
     data = request.get_json()
 
@@ -245,7 +253,7 @@ def add_message():
             image=data['image']
         )
 
-        # 1. SQLAlchemy Message 모델을 사용해 데이터베이스에 추가
+        # 데이터베이스에 메시지 추가
         message = Messages(
             conversation_id=message_dto.conversation_id,
             user_id=message_dto.user_id,
@@ -256,70 +264,127 @@ def add_message():
         db.session.add(message)
         db.session.commit()
 
-        # 2. AI 모듈에 요청을 보내고 응답 받기
-        aimsg = get_message(message.conversation_id, message.text)
+        # AI 모듈에 요청
+        aimsg = get_message(message.conversation_id, message.message_id)
 
         if not aimsg:
+            logging.error("Failed to get response from AI")
             raise Exception("Failed to get response from AI")
 
-        # 3. t_conversations 릴레이션의 context 필드 업데이트
+
+        # t_conversations 릴레이션 업데이트
         conversation = Conversations.query.filter_by(conversation_id=message.conversation_id).first()
+        if not conversation:
+            raise Exception(f"Conversation with ID {message.conversation_id} not found")
 
-        if conversation:
-            conversation.context = aimsg.context
-            db.session.commit()
-        else:
-            raise Exception("Conversation not found")
+        if aimsg['context'] is None:
+            raise Exception(f"AI response context is None for conversation ID {message.conversation_id}")
 
-        # 3. 응답에 AI 응답 포함
+        conversation.context = aimsg['context']
+        message.botresponse = aimsg['botresponse']
+        db.session.commit()
+
+        # 응답 반환
         response = MessageResponseDTO(
             user_id=message.user_id,
-            timelog=message.timelog,
-            botresponse=aimsg.text  # AI 응답
+            timelog=datetime.now().strftime('%Y-%m-%d'),
+            botresponse=aimsg['botresponse']
         )
-
         return jsonify(response.to_dict()), 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
+# 로깅 설정
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+
+
 # 생성된 일기 조회
-@app.route('/diary', methods=['POST'])
+@main_routes.route('/diary', methods=['POST'])
 def get_diary():
     try:
+        logging.info("Diary 조회 요청 시작")
+
         # 요청 데이터를 가져와 DTO로 감싸 검증
         data = request.get_json()
-        diary_request = GetDiaryRequest(
-            user_id=data['user_id'],
-            date=data['date']
+        logging.debug(f"받은 요청 데이터: {data}")
+
+        diary_request = GetDiaryRequestDTO(
+            user_id=data['userId'],
+            conversation_id=data['conversationId'],
+            emo=data['emo'],
+            weather=data['weather']
         )
+        logging.debug(f"Diary 요청 DTO: {diary_request}")
 
-        # 다이어리 조회
-        diary = Diary.query.filter_by(user_id=diary_request.user_id, date=diary_request.date).first()
+        # 대화세션 조회
+        conv = Conversations.query.filter_by(conversation_id=diary_request.conversation_id).first()
+        if not conv:
+            logging.warning(f"Conversation not found: conversation_id={diary_request.conversation_id}")
+            return jsonify({"error": "Conversation not found"}), 404
 
-        if not diary:
-            return jsonify({"error": "Diary not found"}), 404
+        logging.debug(f"Conversation 찾음: {conv}")
 
-        # 응답 DTO를 생성
-        diary_response = GetDiaryResponse(
-            user_id=diary.user_id,
-            diary_id=diary.diary_id,
-            date=diary.date,
-            context=diary.context
-        )
+        writtendiary = Diary.query.filter_by(conversation_id=diary_request.conversation_id).first()
+        logging.debug(f"기존 일기 조회 결과: {writtendiary}")
+
+        # 적힌 일기가 이미 있다면, 이를 반환.
+        if writtendiary:
+            logging.info("기존 일기가 있음, 이를 반환")
+            diary_response = GetDiaryResponseDTO(
+                user_id=writtendiary.user_id,
+                diary_id=writtendiary.diary_id,
+                emo=writtendiary.emo,
+                weather=writtendiary.weather,
+                date=writtendiary.date,
+                context=writtendiary.context
+            )
+        # 없다면, 새 일기 작성 요청 후, 이를 반환
+        else:
+            logging.info("기존 일기가 없으므로 새 일기를 작성합니다.")
+            newdiary = Diary(
+                date=datetime.today(),
+                weather=diary_request.weather,
+                emo=diary_request.emo,
+                user_id=diary_request.user_id,
+                conversation_id=conv.conversation_id,
+                context=""
+            )
+
+            logging.debug(f"새 Diary 객체 생성: {newdiary}")
+
+            # AI 모듈에서 새 일기 작성 요청
+            aidiary = make_diary(conv, newdiary.diary_id)  # diaryId, context 반환
+            logging.debug(f"AI 모듈로부터 반환된 데이터: {aidiary}")
+
+            newdiary.context = aidiary['context']
+
+            db.session.add(newdiary)
+            db.session.commit()
+            logging.info(f"새 일기 저장 완료: {newdiary.diary_id}")
+
+            # 응답 DTO를 생성
+            diary_response = GetDiaryResponseDTO(
+                user_id=newdiary.user_id,
+                diary_id=newdiary.diary_id,
+                emo=newdiary.emo,
+                weather=newdiary.weather,
+                date=newdiary.date,
+                context=newdiary.context
+            )
 
         return jsonify(diary_response.to_dict()), 200
 
     except KeyError as e:
-        # 필수 필드가 없을 때 발생하는 KeyError 처리
+        logging.error(f"필수 필드가 누락되었습니다: {str(e)}")
         return jsonify({"error": f"Missing field: {str(e)}"}), 400
 
     except Exception as e:
-        # 그 외의 예외 처리
+        logging.error(f"알 수 없는 오류 발생: {str(e)}", exc_info=True)
         return jsonify({"error": "An error occurred: " + str(e)}), 500
 
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    main_routes.run(debug=True)

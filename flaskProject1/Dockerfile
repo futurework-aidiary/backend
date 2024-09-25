@@ -14,5 +14,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # . . 뜻: Dockerfile이 있는 디렉토리의 모든 파일과 폴더를 컨테이너의 현재 작업 디렉토리에 복사. 이로 인해 애플리케이션의 코드, 설정 파일 등 필요한 모든 파일이 컨테이너에 포함
 COPY . .
 
-# 파이썬 인터프리터 실행. 이후 app 실행
-CMD ["python", "run.py"]
+EXPOSE 5000
+
+# wsgi로 실행. 이후 app 실행 (cmd 명령을 써놓은거)
+CMD ["waitress-serve", "--port=5000", "run:app"]

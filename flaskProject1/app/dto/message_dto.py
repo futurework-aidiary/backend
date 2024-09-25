@@ -1,6 +1,5 @@
 class MessageRequestDTO:
-    def __init__(self, message_id, conversation_id, user_id, timelog, text, image):
-        self.message_id = message_id
+    def __init__(self, conversation_id, user_id, timelog, text, image):
         self.conversation_id = conversation_id
         self.user_id = user_id
         self.timelog = timelog
@@ -17,9 +16,9 @@ class MessageRequestDTO:
         }
 
 class MessageResponseDTO:
-    def __init__(self, user_id, botresponse, timelog):
+    def __init__(self, user_id, timelog, botresponse = None):
         self.user_id = user_id
-        self.botresponse = botresponse
+        self.botresponse = botresponse if botresponse is not None else ""
         self.timelog = timelog
 
     def to_dict(self):

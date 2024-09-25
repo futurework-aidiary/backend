@@ -1,6 +1,7 @@
 from typing import List, Optional
 
-from sqlalchemy import Column, Date, DateTime, ForeignKeyConstraint, Index, Integer, String, Table, text, nulls_last
+from sqlalchemy import Column, Date, DateTime, ForeignKeyConstraint, Index, Integer, String, Table, text, nulls_last, \
+    ForeignKey
 from sqlalchemy.dialects.mysql import TINYINT
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, MappedClassProtocol
 from datetime import datetime
@@ -115,23 +116,6 @@ class Condition(db.Model):
     abusing: Mapped['Abusing'] = relationship('Abusing', back_populates='condition')
     user: Mapped['User'] = relationship('User', back_populates='condition')
 
-
-class Conversations(db.Model):
-    __tablename__ = 'conversations'
-    __table_args__ = (
-        ForeignKeyConstraint(['user_id'], ['User.user_id'], name='conversations_User_user_id_fk'),
-        Index('conversations_User_user_id_fk', 'user_id'),
-        Index('conversations_id', 'conversation_id', unique=True)
-    )
-    weather: Mapped[str] = mapped_column(String(10), primary_key=True)
-
-    conversation_id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    user_id: Mapped[int] = mapped_column(Integer, nullable=False)
-    start_time: Mapped[Date] = mapped_column(DateTime, nullable=False, server_default=text('CURRENT_TIMESTAMP'))  # 수정된 부분
-    end_time: Mapped[datetime] = mapped_column(DateTime)
-    context: Mapped[str] = mapped_column(String(100))
-
-
 class Custom(db.Model):
     __tablename__ = 'custom'
     __table_args__ = (
@@ -153,6 +137,20 @@ class Custom(db.Model):
 
 
 
+class Conversations(db.Model):
+    __tablename__ = 'conversations'
+    __table_args__ = (
+        ForeignKeyConstraint(['user_id'], ['User.user_id'], name='conversations_User_user_id_fk'),
+        Index('conversations_User_user_id_fk', 'user_id'),
+        Index('conversations_id', 'conversation_id', unique=True)
+    )
+    conversation_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    start_time: Mapped[Date] = mapped_column(DateTime, nullable=False, server_default=text('CURRENT_TIMESTAMP'))  # 수정된 부분
+    end_time: Mapped[datetime] = mapped_column(DateTime)
+    context: Mapped[str] = mapped_column(String(100))
+    diary: Mapped['Diary'] = relationship('Diary', back_populates='conversations')
+
 
 class Diary(db.Model):
     __tablename__ = 'diary'
@@ -163,7 +161,7 @@ class Diary(db.Model):
         Index('diary_User_user_id_fk', 'user_id'),
         Index('diary_emo_emo_fk', 'emo'),
         Index('diary_pk_2', 'date', unique=True),
-        Index('diary_weather_weather_fk', 'weather'),
+        Index('diary_weather_weather_fk', 'weather')
     )
 
     diary_id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -173,7 +171,9 @@ class Diary(db.Model):
     bookmark: Mapped[int] = mapped_column(TINYINT(1))
     user_id: Mapped[Optional[int]] = mapped_column(Integer)
     context: Mapped[Optional[str]] = mapped_column(String(300))
+    conversation_id: Mapped[int] = mapped_column(Integer, ForeignKey('conversations.conversation_id'))
 
+    conversations: Mapped['Conversations'] = relationship('Conversations', back_populates='diary')
     emo_: Mapped['Emo'] = relationship('Emo', back_populates='diary')
     user: Mapped['User'] = relationship('User', back_populates='diary')
     weather_: Mapped['Weather'] = relationship('Weather', back_populates='diary')
@@ -200,17 +200,19 @@ class Messages(db.Model):
         ForeignKeyConstraint(['user_id'], ['User.user_id'], name='user_id'),
         Index('messages_conversations_conversation_id_fk', 'conversation_id'),
         Index('user_id', 'user_id'),
+        Index('messages_id', 'message_id', unique=True)
+
     )
 
     message_id: Mapped[int] = mapped_column(Integer, primary_key=True)
     timelog: Mapped[datetime] = mapped_column(DateTime)
     conversation_id: Mapped[Optional[int]] = mapped_column(Integer)
     user_id: Mapped[Optional[int]] = mapped_column(Integer)
-    text_: Mapped[Optional[str]] = mapped_column('text', String(100))
+    text: Mapped[Optional[str]] = mapped_column('text', String(100))
     image: Mapped[Optional[str]] = mapped_column(String(255))
     botresponse: Mapped[Optional[str]] = mapped_column(String(255))
-
     user: Mapped['User'] = relationship('User', back_populates='messages')
+
 
 
 class Response(db.Model):
