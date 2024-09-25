@@ -1,9 +1,10 @@
+import requests
 from flask import request
 
 from .models import *
 
 # 외부 AI 모델 API URL
-AI_API_URL = "http://localhost:5001"
+AI_API_URL = "http://localhost:5001/futurework/aidiary"
 
 def get_message(conversation_id, message_id):
     try:
@@ -23,16 +24,10 @@ def get_message(conversation_id, message_id):
         # AI 모델 인스턴스에 메시지를 전송
         payload = {"context": conv.context, "text": msg.text}
 
-        ai_response = {"context": "업데이트문맥", "botresponse": "응답"} #request.post(AI_API_URL, json=payload)
+        ai_response = requests.post(AI_API_URL, json=payload)
 
-
-        return ai_response
-
+        return ai_response.json()
         # 외부 API에서 응답 받음
-        #if ai_response.status_code == 200:
-         #   return ai_response.json()
-        #else:
-         #   return None, "Failed to get response from AI instance"
 
     except Exception as e:
         return None, str(e)
@@ -62,13 +57,9 @@ def make_diary(conv, diary_id):
         }
 
         # AI 모듈에 요청을 전송
-        ai_response = request.post(AI_API_URL, json=payload)
+        ai_response = requests.post(AI_API_URL, json=payload)
 
-        # AI 모듈의 응답 처리
-        if ai_response.status_code == 200:
-            return ai_response.json(), None
-        else:
-            return None, "Failed to get response from AI instance"
+        return ai_response.json()
 
     except Exception as e:
         return None, str(e)

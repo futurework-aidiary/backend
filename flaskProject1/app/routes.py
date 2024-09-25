@@ -357,7 +357,7 @@ def get_diary():
             # AI 모듈에서 새 일기 작성 요청
             aidiary = make_diary(conv, newdiary.diary_id)  # diaryId, context 반환
             logging.debug(f"AI 모듈로부터 반환된 데이터: {aidiary}")
-
+            
             newdiary.context = aidiary['context']
 
             db.session.add(newdiary)
