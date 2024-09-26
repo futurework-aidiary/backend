@@ -185,9 +185,9 @@ def conversation_start():
 
     try:
         get_con = ConversationRequestDTO(
-            user_id=data.user_id,
-            emo=data.emo,
-            weather=data.weather
+            user_id=data['userId'],
+            emo=data['emo'],
+            weather=data['weather']
         )
 
     except KeyError as e:
@@ -216,7 +216,7 @@ def conversation_start():
             date = datetime.today(),
             weather = get_con.weather,
             emo = get_con.emo,
-            bookmark = None,
+            bookmark = False,
             user_id = get_con.user_id,
             context = "",
             conversation_id = new_conv.conversation_id
@@ -333,7 +333,9 @@ def get_diary():
 
         diary_request = GetDiaryRequestDTO(
             user_id=data['userId'],
-            conversation_id=data['conversationId']
+            conversation_id=data['conversationId'],
+            emo = "",
+            weather = ""
         )
         logging.debug(f"Diary 요청 DTO: {diary_request}")
 
@@ -352,7 +354,7 @@ def get_diary():
                 context=writtendiary.context
             )
 
-        return jsonify(writtendiary.to_dict()), 200
+        return jsonify(diary_response.to_dict()), 200
 
     except KeyError as e:
         return jsonify({"error": str(e)}), 500

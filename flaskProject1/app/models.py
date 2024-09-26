@@ -160,7 +160,6 @@ class Diary(db.Model):
         ForeignKeyConstraint(['weather'], ['weather.weather'], name='diary_weather_weather_fk'),
         Index('diary_User_user_id_fk', 'user_id'),
         Index('diary_emo_emo_fk', 'emo'),
-        Index('diary_pk_2', 'date', unique=True),
         Index('diary_weather_weather_fk', 'weather')
     )
 

@@ -9,7 +9,7 @@ def get_message(text):
     try:
         # AI 모델 인스턴스에 메시지를 전송
         payload = {"context": '', "text": text}
-
+        print(payload)
         msg_url = AI_API_URL + "/message"
         ai_response = requests.post(msg_url, json=payload)
 
